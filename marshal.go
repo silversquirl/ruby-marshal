@@ -3,6 +3,7 @@ package rbmarshal
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"reflect"
@@ -296,9 +297,11 @@ func (e *Encoder) Encode(v interface{}) error {
 }
 
 func (e *Encoder) marshal(v interface{}) error {
-	vKind := reflect.TypeOf(v).Kind()
-	val := reflect.ValueOf(v)
-	typ := reflect.TypeOf(v)
+	return e.encValue(reflect.ValueOf(v))
+}
+func (e *Encoder) encValue(val reflect.Value) error {
+	vKind := val.Kind()
+	typ := val.Type()
 
 	if vKind == reflect.Ptr {
 		val = val.Elem()
@@ -313,8 +316,11 @@ func (e *Encoder) marshal(v interface{}) error {
 		return e.encInt(int(val.Int()))
 	case reflect.String:
 		return e.encString(val.String())
+	case reflect.Struct:
+		return e.encStruct(val)
+	default:
+		panic(fmt.Sprint("Cannot marshal type ", typ))
 	}
-	return nil
 }
 
 func (e *Encoder) encBool(val bool) error {
@@ -394,6 +400,28 @@ func (e *Encoder) encString(str string) error {
 		return err
 	}
 	return e.encBool(true)
+}
+
+func (e *Encoder) encStruct(val reflect.Value) error {
+	if err := e.w.WriteByte(HASH_SIGN); err != nil {
+		return err
+	}
+	if err := e.encInt(val.NumField()); err != nil {
+		return err
+	}
+
+	typ := val.Type()
+	for i := 0; i < val.NumField(); i += 1 {
+		field := typ.Field(i)
+		if err := e._encSymbol(field.Tag.Get("ruby")); err != nil {
+			return err
+		}
+		if err := e.encValue(val.Field(i)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (e *Encoder) _encSymbol(str string) error {

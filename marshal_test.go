@@ -266,3 +266,31 @@ func TestNewEncoder(t *testing.T) {
 	NewDecoder(bytes.NewReader(encoded)).Decode(&str)
 	fmt.Printf("%#x\n%#v\n", str, str)
 }
+
+func TestEncodeStruct(t *testing.T) {
+	type foo struct {
+		A string `ruby:"a"`
+		B int    `ruby:"b"`
+	}
+
+	w := bytes.Buffer{}
+	e := NewEncoder(&w)
+	err := e.Encode(foo{
+		A: "Hello, world!",
+		B: 42,
+	})
+	if err != nil {
+		t.Fatal("Encode failed: ", err)
+	}
+
+	if !bytes.Equal(w.Bytes(), []byte{
+		4, 8,
+		'{', 7,
+		':', 6, 'a',
+		'I', '"', 18, 'H', 'e', 'l', 'l', 'o', ',', ' ', 'w', 'o', 'r', 'l', 'd', '!', 6, ':', 6, 'E', 'T',
+		':', 6, 'b',
+		'i', 47,
+	}) {
+		t.Error("Invalid encoded data:\n" + hex.Dump(w.Bytes()))
+	}
+}
